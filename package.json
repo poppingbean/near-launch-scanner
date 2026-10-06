@@ -1,0 +1,25 @@
+{
+  "name": "near-launch-scanner",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node src/main.js",
+    "scan": "node src/main.js --scan-only",
+    "status": "node src/cli.js status",
+    "evaluate": "node src/cli.js evaluate",
+    "backfill": "node src/cli.js backfill",
+    "exit": "node src/cli.js exit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Local scanner for new NEAR launchpad tokens: detect, score, and (optionally) buy",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "dotenv": "^18.0.5",
+    "near-api-js": "^7.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

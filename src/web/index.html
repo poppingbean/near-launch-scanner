@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="action-token" content="__ACTION_TOKEN__">
+<title>NEAR Launch Scanner · Monitor</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --text:#e6edf3; --muted:#8b949e; --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff; --purple:#bc8cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:12px 18px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; }
+  h1 { font-size:16px; margin:0 12px 0 0; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 8px; display:flex; gap:8px; align-items:center; }
+  .badge { padding:2px 8px; border-radius:10px; font-weight:600; font-size:12px; border:1px solid var(--line); white-space:nowrap; }
+  .live { background:#3d1214; color:var(--red); border-color:var(--red); }
+  .dry { background:#1c2a1c; color:var(--green); border-color:var(--green); }
+  .kpi { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:4px 10px; }
+  .kpi b { font-variant-numeric: tabular-nums; }
+  main { display:grid; grid-template-columns: minmax(0,1fr) 420px; gap:14px; padding:14px 18px; }
+  @media (max-width: 1200px) { main { grid-template-columns: 1fr; } }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:14px; overflow:auto; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td.wrap { white-space:normal; min-width:180px; max-width:320px; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  tr.click { cursor:pointer; } tr.click:hover { background:#1f2630; }
+  .muted { color:var(--muted); } .g { color:var(--green); } .r { color:var(--red); } .a { color:var(--amber); } .b { color:var(--blue); } .p { color:var(--purple); }
+  .st { padding:1px 7px; border-radius:9px; font-size:11px; border:1px solid currentColor; }
+  .bar { height:6px; background:#30363d; border-radius:3px; overflow:hidden; width:120px; display:inline-block; vertical-align:middle; }
+  .bar > i { display:block; height:100%; background:var(--blue); }
+  #logs { font:12px/1.4 ui-monospace, Consolas, monospace; height:560px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
+  #logs div { padding:1px 0; border-bottom:1px dashed #21262d; }
+  .counts { display:flex; flex-wrap:wrap; gap:6px; }
+  .pads { display:flex; gap:6px; flex-wrap:wrap; }
+  a { color:var(--blue); text-decoration:none; } a:hover { text-decoration:underline; }
+  #drawer { position:fixed; top:0; right:0; width:min(720px, 100%); height:100%; background:var(--panel); border-left:1px solid var(--line); transform:translateX(100%); transition:transform .15s; z-index:10; overflow:auto; padding:16px; }
+  #drawer.open { transform:none; }
+  #drawer pre { background:#0d1117; padding:10px; border-radius:6px; overflow:auto; font-size:12px; }
+  .gate { display:flex; gap:8px; padding:2px 0; }
+  button.sell { padding:2px 8px; margin-right:4px; font-size:12px; border-color:#6e3630; color:#ffa198; }
+  button.sell:hover:not(:disabled) { background:#3d1214; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button { background:#21262d; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; }
+  input[type=search] { background:#0d1117; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:3px 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NEAR Launch Scanner</h1>
+  <span id="mode" class="badge">…</span>
+  <span class="kpi">Wallet: <b id="wallet">–</b></span>
+  <span class="kpi">Spent: <b id="spent">–</b></span>
+  <span class="kpi">Tokens bought today: <b id="today">–</b></span>
+  <span class="kpi">P&amp;L: <b id="realized">–</b></span>
+  <span class="kpi">Tranche: <b id="tranche">–</b></span>
+  <span class="kpi">AI: <b id="aistate">–</b> · reviewing <b id="pending">–</b></span>
+  <span class="kpi">Uptime: <b id="uptime">–</b> · cycle <b id="cycles">–</b></span>
+  <span class="pads" id="pads"></span>
+  <span class="muted" id="updated" style="margin-left:auto"></span>
+</header>
+
+<main>
+  <div>
+    <section><h2>Pipeline status</h2><div class="counts" id="counts"></div></section>
+
+    <section><h2>Positions</h2><table id="positions"></table></section>
+
+    <section><h2>Live · observing / awaiting evaluation</h2><table id="live"></table></section>
+
+    <section><h2>Raising (meme.cooking) / bonding curve</h2><table id="raising"></table></section>
+
+    <section>
+      <h2>Evaluated <input type="search" id="filter" placeholder="filter symbol / token / status"></h2>
+      <table id="evaluated"></table>
+    </section>
+  </div>
+  <div>
+    <section><h2>Log <label class="muted"><input type="checkbox" id="onlyImportant"> key events only</label></h2><div id="logs"></div></section>
+    <section><h2>Configuration</h2><pre id="cfg" class="muted" style="margin:0;white-space:pre-wrap"></pre></section>
+  </div>
+</main>
+
+<div id="drawer"><button onclick="closeDrawer()">Close ✕</button><div id="drawerBody"></div></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtAge = (ms) => { if (ms == null) return '–'; const s = Math.max(0, Math.round(ms / 1000)); if (s < 60) return s + 's'; if (s < 3600) return Math.floor(s / 60) + 'm' + String(s % 60).padStart(2, '0'); return (s / 3600).toFixed(1) + 'h'; };
+const n = (x, d = 2) => (x == null ? '–' : (+x).toLocaleString('en-US', { maximumFractionDigits: d }));
+const tokUrl = (id, lp) => {
+  const e = encodeURIComponent(id);
+  if (lp === 'nearlytrade') return `https://nearly.trade/${e}`;
+  if (lp === 'memecooking' && /^meme#\d+$/.test(id)) return `https://meme.cooking/meme/${id.slice(5)}`;
+  if (lp === 'justhoot') return 'https://justhoot.fun/'; // no per-token route verified
+  return `https://nearblocks.io/token/${e}`; // fallback (e.g. gaypad has no public UI)
+};
+const tokLink = (id, lp) => `<a href="${tokUrl(id, lp)}" target="_blank" rel="noopener">${esc(id.length > 38 ? id.slice(0, 36) + '…' : id)}</a>`;
+const txLink = (h) => (h ? `<a href="https://nearblocks.io/txns/${encodeURIComponent(h)}" target="_blank" rel="noopener">${esc(h.slice(0, 8))}…</a>` : '');
+const STATUS_CLS = { live: 'b', raising: 'b', curve: 'b', ai_review: 'p', skipped: 'muted', stale: 'muted', failed_raise: 'muted', error: 'r',
+  t2_bought: 'g', skipped_quote: 'muted', t1_held_ai_hold: 'a', ai_hold_dry_run: 'a', t1_sold_ai_sell: 'r', ai_sell_dry_run_sold: 'r', ai_hold: 'a', ai_sell: 'r', t1_sold_ai_rejected: 'a', ai_rejected_dry_run_sold: 'a', t1_held_exit_failed: 'r', t1_bought: 'g', t2_dry_run: 'g', t1_dry_run: 'g', approved: 'g', t1_held_ai_rejected: 'a', ai_rejected: 'a', ai_rejected_dry_run: 'a', ai_review_interrupted: 'a', t1_not_bought: 'r', t2_not_bought: 'a' };
+const st = (s) => `<span class="st ${STATUS_CLS[s] || ''}">${esc(s)}</span>`;
+const ACT_CLS = { BUY_MORE: 'g', BUY: 'g', HOLD: 'a', SELL: 'r', SKIP: 'r' };
+let S = null, lastLogId = 0;
+const exited = (p) => !!(p.exit && p.exit.sellShare >= 99.99 && !p.exit.failed);
+const heldValue = (p) => (exited(p) ? 0 : p.valueNear || 0);
+const QS = { 'wrap.near': 'wNEAR', 'nearly-993927.nearlytrade.near': 'NEARLY', 'token.rhealab.near': 'RHEA' };
+
+async function refresh() {
+  try {
+    S = await (await fetch('/api/state')).json();
+    render();
+    $('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch (e) { $('updated').innerHTML = '<span class="r">lost connection to the scanner</span>'; }
+}
+
+function render() {
+  const now = S.now, L = S.limits;
+  $('mode').textContent = { LIVE: 'LIVE TRADING', DRY_RUN: 'DRY RUN', SCAN_ONLY: 'SCAN ONLY (no trading)' }[S.mode]; $('mode').className = 'badge ' + (S.mode === 'LIVE' ? 'live' : 'dry');
+  $('wallet').innerHTML = S.wallet ? (S.wallet.error ? `<span class="r">${esc(S.wallet.account)} error</span>` : `${esc(S.wallet.account)} · ${n(S.wallet.near)} N` + (S.wallet.wnear > 0.0001 ? ` + <span class="a">${n(S.wallet.wnear, 4)} wNEAR</span> <button class="sell" id="unwrapBtn" ${S.mode !== 'LIVE' ? 'disabled title="live mode only"' : ''}>Unwrap</button>` : '')) : '<span class="muted">not configured</span>';
+  $('spent').textContent = `${n(S.spentNear)} / ${L.maxTotalSpendNear} N`;
+  $('today').textContent = `${S.buysToday} / ${L.maxBuysPerDay}`;
+  { // P&L over the book: proceeds received + current value of what's still held − cost
+    const ps = S.positions.filter((p) => S.liveBook !== !!p.paper);
+    const got = ps.reduce((a, p) => a + (p.realizedNear || 0), 0), held = ps.reduce((a, p) => a + heldValue(p), 0), cost = ps.reduce((a, p) => a + (p.near || 0), 0);
+    const pl = got + held - cost;
+    $('realized').innerHTML = `<span class="${pl >= 0 ? 'g' : 'r'}">${pl >= 0 ? '+' : ''}${n(pl, 3)} N</span> <span class="muted" title="NEAR received from sales / current value of holdings / total cost">(${n(got, 2)} back · ${n(held, 2)} held · ${n(cost, 2)} cost)</span>`;
+  }
+  $('tranche').textContent = `${L.firstTrancheNear} N + ${L.secondTrancheNear} N`;
+  $('pending').textContent = S.runtime.pendingReviews;
+  $('aistate').innerHTML = S.mode === 'SCAN_ONLY' ? '<span class="muted">not used (scan-only)</span>' : !S.ai.enabled ? '<span class="muted">off</span>' : S.ai.ok === true ? `<span class="g">ready (${S.ai.backend === 'cli' ? 'claude CLI' : 'API'})</span>` : S.ai.ok === false ? `<span class="r" title="${esc(S.ai.error)}">error - ${esc(String(S.ai.error).slice(0, 60))}</span>` : '<span class="a">checking…</span>';
+  $('uptime').textContent = fmtAge(now - S.runtime.startedTs);
+  $('cycles').textContent = S.runtime.cycles + (S.runtime.lastCycleTs ? ` (${fmtAge(now - S.runtime.lastCycleTs)} ago)` : '');
+  $('pads').innerHTML = S.launchpads.map((p) => { const lp = S.runtime.lastPoll[p]; const cls = !lp ? 'muted' : lp.ok ? 'g' : 'r'; return `<span class="badge ${cls}" title="${esc(lp?.error || '')}">${esc(p)} ${lp ? fmtAge(now - lp.ts) : '…'}</span>`; }).join('');
+
+  const counts = {}; for (const t of S.tokens) counts[t.status] = (counts[t.status] || 0) + 1;
+  $('counts').innerHTML = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${st(k)} <b>${v}</b>`).join(' &nbsp; ') || '<span class="muted">no tokens yet</span>';
+
+  const pos = S.positions.filter((p) => S.liveBook !== !!p.paper);
+  const roiCls = (r) => (r == null ? 'muted' : r >= S.takeProfit.roi ? 'g' : r >= 0 ? '' : 'r');
+  $('positions').innerHTML = '<tr><th>Time</th><th>Token</th><th>Sell</th><th>Pad</th><th>Cost</th><th>Current value</th><th>ROI</th><th>Realized</th><th>Take profit</th><th>Tranches</th></tr>' +
+    (pos.length ? pos.map((p) => `<tr class="click" data-k="${esc(p.token)}"><td>${new Date(p.ts).toLocaleString()}${p.paper ? ' <span class="st muted">paper</span>' : ''}</td><td><b>${esc(p.symbol || '')}</b> ${tokLink(p.token, p.launchpad)}</td><td style="white-space:nowrap">${sellButtons(p)}</td><td>${esc(p.launchpad)}</td><td>${n(p.near)} N</td><td>${n(heldValue(p), 3)} N</td><td class="${roiCls(p.roi)}"><b>${p.roi == null ? '–' : (p.roi * 100).toFixed(0) + '%'}</b></td><td>${n(p.realizedNear, 3)} N</td><td>${p.exit ? `<span class="a">exited (${esc(p.exit.reason)}): ${n(p.exit.nearOut ?? p.exit.expectedNear, 3)} N back${p.exit.failed ? ' - FAILED' : ''}</span> ${txLink(p.exit.hash)}` : p.takeProfit ? `<span class="g">took ${n(p.takeProfit.nearOut ?? p.takeProfit.expectedNear, 3)} N (${n(p.takeProfit.sellShare)}%)</span> ${txLink(p.takeProfit.hash)}` : `<span class="muted">waiting for ROI > ${S.takeProfit.roi * 100}%</span>`}</td><td>${(p.tranches || []).map((x) => `T${x.tranche}: ${x.near}N ${esc(x.route || '')} ${txLink(x.hash)}`).join(' · ')}</td></tr>`).join('') : '<tr><td colspan="10" class="muted">no positions yet</td></tr>');
+
+  const live = S.tokens.filter((t) => t.status === 'live' || t.status === 'ai_review');
+  $('live').innerHTML = '<tr><th>Symbol</th><th>Token</th><th>Pad</th><th>Pool age</th><th>Evaluated in</th><th>Liquidity</th><th>Dev buy</th><th>DEX · quote</th><th>Status</th></tr>' +
+    (live.length ? live.map((t) => { const age = now - t.liveTs; const minAge = Math.max(S.observeSeconds, t.launchpad === 'justhoot' ? 240 : 0) * 1000; return `<tr class="click" data-k="${esc(t.key)}"><td><b>${esc(t.symbol)}</b></td><td>${tokLink(t.token, t.launchpad)}</td><td>${esc(t.launchpad)}</td><td>${fmtAge(age)}</td><td>${t.status === 'live' ? fmtAge(minAge - age) : '–'}</td><td>${n(t.liquidityNear)} N</td><td>${n(t.devBuyNear)} N</td><td>${esc(t.pool?.dex)} · ${esc(QS[t.pool?.quote] || t.pool?.quote)}</td><td>${st(t.status)}</td></tr>`; }).join('') : '<tr><td colspan="9" class="muted">no live tokens waiting</td></tr>');
+
+  const raising = S.tokens.filter((t) => t.status === 'raising' || t.status === 'curve');
+  $('raising').innerHTML = '<tr><th>Symbol</th><th>Key</th><th>Pad</th><th>Age</th><th>Raised</th><th>Progress (soft cap 100)</th><th>Ends</th><th>Creator</th></tr>' +
+    (raising.length ? raising.map((t) => { const pct = Math.min(100, (t.raisedNear || 0)); const left = t.raiseEndTs ? t.raiseEndTs - now : null; return `<tr class="click" data-k="${esc(t.key)}"><td><b>${esc(t.symbol)}</b></td><td>${esc(t.key)}</td><td>${esc(t.launchpad)}</td><td>${fmtAge(now - t.createdTs)}</td><td>${n(t.raisedNear)} N (${t.depositors ?? 0} dep)</td><td><span class="bar"><i style="width:${pct}%"></i></span> ${pct.toFixed(0)}%</td><td>${left == null ? '–' : left > 0 ? 'in ' + fmtAge(left) : '<span class="a">expired, awaiting finalize</span>'}</td><td class="muted" title="${esc(t.creator)}">${esc(String(t.creator || '').length > 24 ? t.creator.slice(0, 22) + '…' : t.creator)}</td></tr>`; }).join('') : '<tr><td colspan="8" class="muted">no open raises</td></tr>');
+
+  const q = $('filter').value.trim().toLowerCase();
+  const ev = S.tokens.filter((t) => t.evaluatedTs && t.status !== 'ai_review').filter((t) => !q || [t.symbol, t.token, t.status].join(' ').toLowerCase().includes(q)).sort((a, b) => b.evaluatedTs - a.evaluatedTs).slice(0, 100);
+  $('evaluated').innerHTML = '<tr><th>At</th><th>Symbol</th><th>Token</th><th>Pad</th><th>MCap</th><th>Pool N</th><th>Buyers</th><th>Score</th><th>Gate fail</th><th>AI</th><th>Trade</th><th>Status</th></tr>' +
+    (ev.length ? ev.map((t) => `<tr class="click" data-k="${esc(t.key)}"><td>${new Date(t.evaluatedTs).toLocaleTimeString()}</td><td><b>${esc(t.symbol)}</b></td><td>${tokLink(t.token, t.launchpad)}</td><td>${esc(t.launchpad)}</td><td>${t.mcapUsd == null ? '–' : '$' + n(t.mcapUsd, 0)}</td><td>${n(t.poolNear, 1)}</td><td>${t.buyers ?? '–'}</td><td class="${t.score >= S.rules.minScore ? 'g' : 'r'}">${t.score ?? '–'}</td><td class="r wrap">${esc(t.failed.join(', '))}</td><td>${t.ai ? `<span class="${ACT_CLS[t.ai.action || t.ai.decision] || ''}">${esc(t.ai.action || t.ai.decision)} ${n(t.ai.confidence)}</span> <span class="muted">${esc(t.ai.risk_level)}</span>` : '–'}</td><td>${t.trade ? Object.entries(t.trade).filter(([, v]) => v).map(([k, v]) => `${k.toUpperCase()}:${esc(v.status)}${v.hash ? ' ' + txLink(v.hash) : ''}`).join(' ') : ''}</td><td>${st(t.status)}</td></tr>`).join('') : '<tr><td colspan="12" class="muted">no tokens evaluated yet</td></tr>');
+
+  $('cfg').textContent = `launchpads: ${S.launchpads.join(', ')}\naccepted quotes: ${S.acceptedQuotes.join(', ')}\ntake profit: ${S.takeProfit.enabled ? `ROI > ${S.takeProfit.roi * 100}% → withdraw ${S.takeProfit.withdrawNear} N, hold the rest` : 'OFF'}\npoll ${S.pollSeconds}s · observe ${S.observeSeconds}s after the pool goes live\ntranche 1 ${L.firstTrancheNear} N (after hard rules) · tranche 2 ${L.secondTrancheNear} N (after AI approval, skipped if price rose > ${L.maxTranche2PriceRise * 100}%)\nslippage ${L.slippageBps / 100}% · reserve ${L.minNearReserve} N\nAI: ${S.ai.enabled ? S.ai.model + ' · min confidence ' + S.ai.minConfidence : 'OFF'}\nrules: ${Object.entries(S.rules).map(([k, v]) => k + '=' + v).join(' · ')}`;
+}
+
+const IMPORTANT = /^(NEW|LIVE|RULES|AI |BOUGHT|BUY|DRY-RUN|RAISE FAILED|EVAL|SKIP|TAKE PROFIT|TOOK PROFIT|EXIT|SOLD|SELL|HOLD)/;
+async function pollLogs() {
+  try {
+    const rows = await (await fetch('/api/logs?after=' + lastLogId)).json();
+    if (!rows.length) return;
+    lastLogId = rows[rows.length - 1].id;
+    const box = $('logs'), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 20;
+    for (const r of rows) {
+      const d = document.createElement('div');
+      d.dataset.imp = IMPORTANT.test(r.msg) || r.level !== 'INFO' ? '1' : '';
+      const cls = r.level === 'ERROR' ? 'r' : r.level === 'WARN' ? 'a' : /^(BOUGHT|DRY-RUN|TOOK PROFIT|TAKE PROFIT)/.test(r.msg) ? 'g' : /^LIVE/.test(r.msg) ? 'b' : /^AI /.test(r.msg) ? 'p' : '';
+      d.className = cls;
+      d.textContent = `${new Date(r.ts).toLocaleTimeString()} ${r.msg}`;
+      if ($('onlyImportant').checked && !d.dataset.imp) d.style.display = 'none';
+      box.appendChild(d);
+    }
+    while (box.children.length > 800) box.firstChild.remove();
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  } catch {}
+}
+$('onlyImportant').onchange = () => { for (const d of $('logs').children) d.style.display = $('onlyImportant').checked && !d.dataset.imp ? 'none' : ''; };
+$('filter').oninput = () => S && render();
+
+// ---- manual sell (positions table). The server re-checks everything; this is just the UI.
+const ACTION_TOKEN = document.querySelector('meta[name="action-token"]').content;
+function sellButtons(p) {
+  const empty = p.heldTokens === 0 || (p.exit && p.exit.sellShare >= 99.99 && !p.exit.failed);
+  const off = S.mode === 'SCAN_ONLY' || empty;
+  const why = S.mode === 'SCAN_ONLY' ? 'scan-only mode never trades' : empty ? 'nothing left to sell' : '';
+  return [25, 50, 100].map((pct) => `<button class="sell" data-sell="${esc(p.token)}" data-pct="${pct}" ${off ? `disabled title="${why}"` : ''}>${pct === 100 ? 'All' : pct + '%'}</button>`).join('');
+}
+async function postAction(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-action-token': ACTION_TOKEN }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ error: 'HTTP ' + r.status }));
+  if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+  return j;
+}
+async function onSell(btn) {
+  const token = btn.dataset.sell, percent = Number(btn.dataset.pct);
+  const row = btn.closest('td'); row.querySelectorAll('button').forEach((b) => (b.disabled = true));
+  try {
+    const q = await postAction('/api/sell/preview', { token, percent });
+    if (q.status !== 'preview') { alert(`Cannot sell ${token}: ${q.reason || q.status}`); return; }
+    const p = q.plan;
+    const live = S.mode === 'LIVE' && !p.paper;
+    const msg = `${live ? 'REAL SALE' : 'PAPER sale (dry-run)'}\n\nSell ${p.sellShare}% of ${p.symbol || token}\n${p.sellTokens.toLocaleString()} of ${p.heldTokens.toLocaleString()} tokens\n\nExpected: ~${p.expectedNear.toFixed(4)} NEAR\nMinimum (slippage): ${p.minNear.toFixed(4)} NEAR\nPosition cost: ${p.cost} NEAR · route ${p.route}` +
+      (p.sellShare < percent - 0.5 ? `\n\nNote: the pool can only fill ${p.sellShare}% right now.` : '') + '\n\nConfirm?';
+    if (!confirm(msg)) return;
+    const r = await postAction('/api/sell', { token, percent });
+    alert(r.status === 'sold' ? `Sold: ${r.nearOut.toFixed(4)} NEAR back\ntx ${r.hash}` : r.status === 'dry_run' ? `Paper sale recorded: ~${r.nearOut.toFixed(4)} NEAR` : `Sale ${r.status}: ${r.reason || ''}${r.hash ? '\ntx ' + r.hash : ''}`);
+  } catch (err) { alert('Sell failed: ' + err.message); }
+  finally { refresh(); }
+}
+
+document.addEventListener('click', async (e) => {
+  if (e.target.id === 'unwrapBtn' && !e.target.disabled) {
+    if (!confirm(`Convert ${S.wallet.wnear} wNEAR in the wallet back to NEAR?`)) return;
+    e.target.disabled = true;
+    try { const r = await postAction('/api/unwrap', {}); alert(r.status === 'unwrapped' ? `Unwrapped ${r.near.toFixed(4)} wNEAR\ntx ${r.hash}` : `Unwrap ${r.status}: ${r.reason || ''}`); }
+    catch (err) { alert('Unwrap failed: ' + err.message); } finally { refresh(); }
+    return;
+  }
+  const sellBtn = e.target.closest('button[data-sell]');
+  if (sellBtn) { e.stopPropagation(); if (!sellBtn.disabled) onSell(sellBtn); return; }
+  const tr = e.target.closest('tr.click'); if (!tr || e.target.closest('a')) return;
+  const t = await (await fetch('/api/token/' + encodeURIComponent(tr.dataset.k))).json();
+  const ev = t.evaluation, f = ev?.features;
+  let h = `<h2 style="margin-top:12px">${esc(t.symbol)} · ${esc(t.token || t.key)} ${st(t.status)}</h2>`;
+  h += `<p class="muted">${esc(t.launchpad)} · creator ${esc(t.creator)} · live tx ${txLink(t.liveTx)}${t.raiseSeconds != null ? ' · raise ' + fmtAge(t.raiseSeconds * 1000) : ''}</p>`;
+  if (ev) {
+    h += `<p>Score <b>${ev.score}</b> · gate fail: <span class="r">${esc(ev.failed.join(', ') || 'none')}</span></p>`;
+    if (ev.ai) h += `<h2>AI review</h2><p><b class="${ACT_CLS[ev.action || ev.ai.action || ev.ai.decision] || ''}">${esc(ev.action || ev.ai.action || ev.ai.decision)}</b>${ev.action && ev.ai.action && ev.action !== ev.ai.action ? ` <span class="muted">(AI said ${esc(ev.ai.action)}, below confidence bar)</span>` : ''} conf ${ev.ai.confidence} · quality ${ev.ai.quality_score} · risk ${esc(ev.ai.risk_level)}</p><ul>${(ev.ai.reasons || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>${(ev.ai.red_flags || []).length ? `<p class="r">Red flags:</p><ul>${ev.ai.red_flags.map((r) => `<li class="r">${esc(r)}</li>`).join('')}</ul>` : ''}`;
+  }
+  if (t.trade) h += `<h2>Trade</h2><pre>${esc(JSON.stringify(t.trade, null, 1))}</pre>`;
+  if (f) h += `<h2>Features</h2><pre>${esc(JSON.stringify(f, null, 1))}</pre>`;
+  else h += `<pre>${esc(JSON.stringify(t, null, 1))}</pre>`;
+  $('drawerBody').innerHTML = h; $('drawer').classList.add('open');
+});
+function closeDrawer() { $('drawer').classList.remove('open'); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
+refresh(); pollLogs();
+setInterval(refresh, 3000); setInterval(pollLogs, 1500);
+</script>
+</body>
+</html>
