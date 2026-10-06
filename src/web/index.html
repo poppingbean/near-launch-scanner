@@ -92,7 +92,7 @@ const tokUrl = (id, lp) => {
   const e = encodeURIComponent(id);
   if (lp === 'nearlytrade') return `https://nearly.trade/${e}`;
   if (lp === 'memecooking' && /^meme#\d+$/.test(id)) return `https://meme.cooking/meme/${id.slice(5)}`;
-  if (lp === 'justhoot') return 'https://justhoot.fun/'; // no per-token route verified
+  if (lp === 'justhoot') return `https://justhoot.fun/p/${e}`;
   return `https://nearblocks.io/token/${e}`; // fallback (e.g. gaypad has no public UI)
 };
 const tokLink = (id, lp) => `<a href="${tokUrl(id, lp)}" target="_blank" rel="noopener">${esc(id.length > 38 ? id.slice(0, 36) + '…' : id)}</a>`;
