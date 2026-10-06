@@ -91,7 +91,10 @@ const n = (x, d = 2) => (x == null ? '–' : (+x).toLocaleString('en-US', { maxi
 const tokUrl = (id, lp) => {
   const e = encodeURIComponent(id);
   if (lp === 'nearlytrade') return `https://nearly.trade/${e}`;
-  if (lp === 'memecooking' && /^meme#\d+$/.test(id)) return `https://meme.cooking/meme/${id.slice(5)}`;
+  if (lp === 'memecooking') { // token account -> meme id via the launch key ("meme#<id>")
+    const key = /^meme#\d+$/.test(id) ? id : S.tokens.find((t) => t.token === id)?.key;
+    if (/^meme#\d+$/.test(key || '')) return `https://meme.cooking/meme/${key.slice(5)}`;
+  }
   if (lp === 'justhoot') return `https://justhoot.fun/p/${e}`;
   return `https://nearblocks.io/token/${e}`; // fallback (e.g. gaypad has no public UI)
 };
