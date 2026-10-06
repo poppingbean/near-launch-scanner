@@ -9,7 +9,7 @@ export async function rpc(method, params) {
   for (let i = 0; i < config.rpcUrls.length * 3; i++) {
     const url = config.rpcUrls[rr++ % config.rpcUrls.length];
     try {
-      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...(/(^|\.)fastnear\.com$/.test(new URL(url).hostname) ? fastnearHeaders() : {}) }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
       const j = await res.json();
       if (j.result !== undefined) return j.result;
       lastErr = new Error(JSON.stringify(j.error).slice(0, 200));
